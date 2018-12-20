@@ -7,6 +7,9 @@ export default class RigidBodyaPrediction extends cc.Component {
 
 	@property(cc.Prefab)
 	show_prefab: cc.Prefab = null;
+
+	@property(cc.Node)
+	result: cc.Node = null;
 	// LIFE-CYCLE CALLBACKS:
 	//米/秒^2
 	a_y = 0;
@@ -14,11 +17,22 @@ export default class RigidBodyaPrediction extends cc.Component {
 	//米/秒
 	v_y = 0;
 	v_x = 0;
+	//位置
 	x = 0;
 	y = 0;
+	//阻尼
 	linear_Damping = 0;
+
+	status = true;
+
+	pool: cc.Node[] = new Array<cc.Node>();
+
 	onLoad() {
-		this.init();
+		for (let index = 0; index < 25; index++) {
+			let tmp = cc.instantiate(this.show_prefab);
+			this.pool.push(tmp);
+			this.result.addChild(tmp);
+		}
 	}
 	init() {
 		let world_y = cc.director.getPhysicsManager().gravity.y;
@@ -37,41 +51,54 @@ export default class RigidBodyaPrediction extends cc.Component {
 		this.y = this.RigidBody.node.y;
 		this.linear_Damping = this.RigidBody.linearDamping;
 	}
-
 	start() {
+		this.RigidBody.node.on(
+			cc.Node.EventType.TOUCH_CANCEL,
+			function() {
+				this.RigidBody.type = cc.RigidBodyType.Dynamic;
+				this.status = false;
+			},
+			this
+		);
+		this.RigidBody.node.on(
+			cc.Node.EventType.TOUCH_MOVE,
+			function(event: cc.Touch) {
+				let vec2 = this.RigidBody.node.convertToNodeSpaceAR(
+					event.getLocation()
+				);
+				this.RigidBody.linearVelocity = new cc.Vec2(
+					-vec2.x,
+					-vec2.y * 2
+				);
+			},
+			this
+		);
+	}
+
+	show() {
+		this.init();
 		this.node.removeChild(this.RigidBody.node, false);
 		this.node.addChild(this.RigidBody.node, 9999);
-		let size = cc.view.getVisibleSize();
-		for (let index = 0; index < 50; index++) {
-			let tmp = cc.instantiate(this.show_prefab);
-			this.node.addChild(tmp);
+		for (let index = 0; index < 25; index++) {
+			let tmp = this.pool[index];
 			tmp.x = this.x;
 			tmp.y = this.y;
-			this.updateX(0.1);
-			this.updateY(0.1);
+			this.updatePostion(0.15);
 		}
 	}
 	updateX(dt) {
-		let damping = -this.linear_Damping * this.v_x * dt;
 		this.x += this.s(this.v_x, this.a_x, dt) * cc.PhysicsManager.PTM_RATIO;
+		let damping = -this.linear_Damping * this.v_x * dt;
 		this.v_x = this.v(this.v_x, this.a_x, dt) + damping;
 	}
 	updateY(dt) {
-		let damping = -this.linear_Damping * this.v_y * dt;
 		this.y -= this.s(this.v_y, this.a_y, dt) * cc.PhysicsManager.PTM_RATIO;
+		let damping = -this.linear_Damping * this.v_y * dt;
 		this.v_y = this.v(this.v_y, this.a_y, dt) + damping;
 	}
-	update(dt) {
-		// let tmp = cc.instantiate(this.show_prefab);
-		// this.node.addChild(tmp);
-		// tmp.x = this.x;
-		// tmp.y = this.y;
-		// this.updateX(dt);
-		// this.updateY(dt);
-		// console.log(
-		// 	(this.x - this.RigidBody.node.x) / dt,
-		// 	(this.y - this.RigidBody.node.y) / dt
-		// );
+	updatePostion(dt) {
+		this.updateX(dt);
+		this.updateY(dt);
 	}
 
 	v(v0, a, t) {
@@ -80,7 +107,9 @@ export default class RigidBodyaPrediction extends cc.Component {
 	s(v0, a, t) {
 		return v0 * t + (a * t * t) / 2;
 	}
-	d(v0, v, a) {
-		return (v * v - v0 * v0) / (2 * a);
+	update() {
+		if (this.status) {
+			this.show();
+		}
 	}
 }
